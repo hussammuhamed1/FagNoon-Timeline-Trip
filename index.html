@@ -105,6 +105,18 @@ function optimize(trips){
  const search=plans=>{let best=null;function visit(i,chosen){if(evaluations>=50000)return;if(i<plans.length){for(const p of plans[i]){visit(i+1,[...chosen,p]);if(evaluations>=50000)break}return}function visitStarts(j,starts){if(evaluations>=50000)return;if(j<startOptions.length){for(const v of startOptions[j]){visitStarts(j+1,[...starts,v]);if(evaluations>=50000)break}return}const res=schedule(chosen,starts),score=resultScore(res,chosen);evaluations++;if(!best||score<best.score)best={...res,score,starts,planTrips:chosen}}visitStarts(0,[])}visit(0,[]);return best};
  let best=search(variants);if(!best)return null;
  for(let round=0;round<10&&best.conflicts.length+best.endMismatches.length>0;round++){let improved=best;const current=best.planTrips;for(let ti=0;ti<current.length;ti++){const activities=[...current[ti].core,...(current[ti].colorFight?[current[ti].colorFight]:[])];for(const a of activities){const already=a._originalMinutes-a.minutes;if(already>=10||a.minutes<=15)continue;for(const cut of [5,10]){if(already+cut>10||a.minutes-cut<15)continue;const plans=current.map(t=>({...t,core:t.core.map(x=>({...x})),colorFight:t.colorFight?{...t.colorFight}:null}));let next=plans[ti].core.find(x=>(x.order??x.name)===(a.order??a.name));if(!next&&plans[ti].colorFight&&(plans[ti].colorFight.order??plans[ti].colorFight.name)===(a.order??a.name))next=plans[ti].colorFight;if(!next)continue;next.minutes-=cut;const res=schedule(plans,best.starts),score=resultScore(res,plans);if(score<improved.score)improved={...res,score,starts:best.starts,planTrips:plans}}}}if(improved===best)break;best=improved}
+ // Refine each trip's activity sequence against the actual cross-trip room conflicts.
+ // Moving one activity at a time lets split-group rounds change position until all trips
+ // use different locations at the same time, without changing the entered trip windows.
+ for(let round=0;round<8&&best.conflicts.length>0;round++){
+  let changed=false;
+  for(let ti=0;ti<best.planTrips.length;ti++){
+   const base=best.planTrips[ti],n=base.core.length,candidates=planVariants(base,500),lunchChoices=n>1?[...new Set([1,Math.max(1,Math.ceil(n/2)),n-1])]:[0];
+   for(let from=0;from<n;from++)for(let to=0;to<n;to++)if(from!==to){const core=[...base.core],moved=core.splice(from,1)[0];core.splice(to,0,moved);for(const lunchAfter of lunchChoices)candidates.push({...base,core:[...core],lunchAfter,colorFight:base.colorFight?{...base.colorFight}:null})}
+   const seen=new Set();for(const candidate of candidates){const key=`${candidate.lunchAfter}|${candidate.core.map(a=>a.order??a.name).join('|')}`;if(seen.has(key))continue;seen.add(key);const plans=best.planTrips.map(t=>({...t,core:t.core.map(a=>({...a})),colorFight:t.colorFight?{...t.colorFight}:null}));plans[ti]=candidate;const res=schedule(plans,best.starts),score=resultScore(res,plans);if(score<best.score){best={...res,score,starts:best.starts,planTrips:plans};changed=true}}
+  }
+  if(!changed)break
+ }
  best.durationCuts=best.planTrips.flatMap(t=>[...t.core,...(t.colorFight?[t.colorFight]:[])].filter(a=>a.minutes<a._originalMinutes).map(a=>({trip:t.name,activity:a.name,by:a._originalMinutes-a.minutes})));return best
 }function render(trips,r){
  const el=$('#results');el.classList.add('show');let msgs=[];
