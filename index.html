@@ -34,7 +34,7 @@
   <main>
     <div class="intro"><div><h2>Trip details</h2><p>Enter each trip and the activities it needs. The planner will compare start times.</p></div><button id="addTrip">＋ Add a trip</button></div>
     <div class="notice"><strong>Group setup:</strong> choose Automatic to use the data.md rule (over 50 children means two groups), or set a manual group choice for that trip. Split groups share welcome, lunch, and farewell. Add travel buffers where needed; unknown travel times are not guessed.</div>
-    <div class="layout"><section class="trip-list" id="trips"></section><aside class="side-card"><h3>How the planner schedules</h3><div class="rule"><strong>1. Trip windows</strong><br>Each trip may start anywhere between its earliest and latest start.</div><div class="rule"><strong>2. Group setup</strong><br>Automatic uses the 50-child threshold; choose a manual setting to override it.</div><div class="rule"><strong>3. Shared places</strong><br>At Reception, Welcome may overlap another trip's Welcome or Farewell, and Farewell may overlap another trip's Welcome or Farewell.</div><div class="rule"><strong>4. Activity order</strong><br>Activities are reordered using priority and location. In one-group trips, the planner separates same-place activities when another location is available.</div><div class="rule"><strong>5. Together</strong><br>Welcome, synchronized lunch, and farewell are scheduled for both groups together when split.</div><div class="rule"><strong>Split group activities</strong><br>Group 1 and Group 2 are assigned different activities at the same time when their locations allow.</div><div class="rule"><strong>Optimization</strong><br>For two split trips with a manageable number of activity orders, checks every order against shared-location and exact-end constraints.</div></aside></div>
+    <div class="layout"><section class="trip-list" id="trips"></section><aside class="side-card"><h3>How the planner schedules</h3><div class="rule"><strong>1. Trip windows</strong><br>Each trip may start anywhere between its earliest and latest start.</div><div class="rule"><strong>2. Group setup</strong><br>Automatic uses the 50-child threshold; choose a manual setting to override it.</div><div class="rule"><strong>3. Shared places</strong><br>At Reception, Welcome may overlap another trip's Welcome or Farewell, and Farewell may overlap another trip's Welcome or Farewell.</div><div class="rule"><strong>4. Activity order</strong><br>Activities are reordered using priority and location. In one-group trips, the planner separates same-place activities when another location is available.</div><div class="rule"><strong>5. Together</strong><br>Welcome, synchronized lunch, and farewell are scheduled for both groups together when split.</div><div class="rule"><strong>Split group activities</strong><br>Group 1 and Group 2 are assigned different activities at the same time when their locations allow.</div><div class="rule"><strong>Optimization</strong><br>Checks all activity orders for manageable split-trip schedules and searches wider when the schedule is larger.</div></aside></div>
     <div class="actions"><button id="optimize">Create optimized timelines</button><button id="sample" class="secondary">Load example trips</button><span class="quiet">Your entries stay in this browser.</span></div>
     <section id="results" class="results"></section>
   </main>
@@ -119,6 +119,22 @@ function optimize(trips){
    const seen=new Set();for(const candidate of candidates){const key=`${candidate.lunchAfter}|${candidate.core.map(a=>a.order??a.name).join('|')}`;if(seen.has(key))continue;seen.add(key);const plans=best.planTrips.map(t=>({...t,core:t.core.map(a=>({...a})),colorFight:t.colorFight?{...t.colorFight}:null}));plans[ti]=candidate;const res=schedule(plans,best.starts),score=resultScore(res,plans);if(score<best.score){best={...res,score,starts:best.starts,planTrips:plans};changed=true}}
   }
   if(!changed)break
+ }
+ // For larger split-trip cases, use simulated annealing to escape local ordering traps.
+ // The score penalizes end-time violations first, then shared places and group conflicts.
+ if(best.conflicts.length>0&&best.planTrips.some(t=>t.groups===2)){
+  let seed=trips.reduce((n,t)=>n+t.name.length*31+t.core.length*997,271828),random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
+  const clonePlans=plans=>plans.map(t=>({...t,core:t.core.map(a=>({...a})),colorFight:t.colorFight?{...t.colorFight}:null}));let current=clonePlans(best.planTrips),currentScore=best.score;
+  for(let step=0;step<16000&&best.conflicts.length>0;step++){
+   const plans=clonePlans(current),ti=Math.floor(random()*plans.length),plan=plans[ti],n=plan.core.length,move=Math.floor(random()*4);
+   if(n>1&&move===0){const a=Math.floor(random()*n),b=Math.floor(random()*n);[plan.core[a],plan.core[b]]=[plan.core[b],plan.core[a]]}
+   else if(n>1&&move===1){const from=Math.floor(random()*n),to=Math.floor(random()*n),item=plan.core.splice(from,1)[0];plan.core.splice(to,0,item)}
+   else if(n>2&&move===2){let a=Math.floor(random()*n),b=Math.floor(random()*n);if(a>b)[a,b]=[b,a];plan.core.splice(a,b-a+1,...plan.core.slice(a,b+1).reverse())}
+   else if(n>1)plan.lunchAfter=[...new Set([1,Math.max(1,Math.ceil(n/2)),n-1])][Math.floor(random()*new Set([1,Math.max(1,Math.ceil(n/2)),n-1]).size)];
+   const res=schedule(plans,best.starts),score=resultScore(res,plans),temperature=2500000*(1-step/16000)+25000;
+   if(score<best.score)best={...res,score,starts:best.starts,planTrips:plans};
+   if(score<=currentScore||random()<Math.exp((currentScore-score)/temperature)){current=plans;currentScore=score}
+  }
  }
  best.durationCuts=best.planTrips.flatMap(t=>[...t.core,...(t.colorFight?[t.colorFight]:[])].filter(a=>a.minutes<a._originalMinutes).map(a=>({trip:t.name,activity:a.name,by:a._originalMinutes-a.minutes})));return best
 }function render(trips,r){
