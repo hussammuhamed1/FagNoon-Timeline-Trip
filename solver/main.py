@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from ortools.sat.python import cp_model
 
 
 app = FastAPI(title="FagNoon Timeline Solver", version="1.0.0")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -49,6 +52,21 @@ def cuttable_duration(model: cp_model.CpModel, name: str, base: int) -> cp_model
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "solver": "OR-Tools CP-SAT"}
+
+
+@app.get("/", include_in_schema=False)
+def planner_page() -> FileResponse:
+    return FileResponse(PROJECT_ROOT / "index.html", media_type="text/html")
+
+
+@app.get("/images.jpg", include_in_schema=False)
+def logo_image() -> FileResponse:
+    return FileResponse(PROJECT_ROOT / "images.jpg", media_type="image/jpeg")
+
+
+@app.get("/solver-config.js", include_in_schema=False)
+def solver_config() -> FileResponse:
+    return FileResponse(PROJECT_ROOT / "solver-config.js", media_type="application/javascript")
 
 
 @app.post("/api/optimize")

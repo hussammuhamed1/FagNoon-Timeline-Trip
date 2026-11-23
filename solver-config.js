@@ -1,3 +1,3 @@
-// Set this to the deployed CP-SAT API base URL, for example https://your-service.onrender.com
-// Leave empty to use the browser-based planner.
-window.FAGNOON_SOLVER_API_URL = "";
+// On Vercel, the planner and CP-SAT API share the same origin. GitHub Pages
+// continues using the browser planner until a separate API URL is configured.
+window.FAGNOON_SOLVER_API_URL = location.hostname.endsWith("github.io") ? "" : location.origin;

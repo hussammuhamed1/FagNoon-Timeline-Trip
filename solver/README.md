@@ -13,8 +13,8 @@ python -m uvicorn solver.main:app --reload --port 8000
 
 The health check is `http://localhost:8000/health` and the optimizer is `POST http://localhost:8000/api/optimize`.
 
-## Deploy the API
+## Deploy the website and API together on Vercel
 
-The project includes `render.yaml` for a Render web service. Create a Blueprint from this repository. After it deploys, copy the service's HTTPS URL into `solver-config.js` as `window.FAGNOON_SOLVER_API_URL`, then publish that file with the website. The GitHub Pages site remains the team's interface; this Python service runs the CP-SAT model.
+Import this repository into Vercel and deploy it. `pyproject.toml` points Vercel to the FastAPI application. The application serves the planner page and logo alongside `/api/optimize`; on Vercel, `solver-config.js` automatically connects the planner to the same origin. GitHub Pages remains available and continues to use the browser planner.
 
-The API allows requests from the current GitHub Pages origin and local development. Update the CORS allowlist in `solver/main.py` if the website hostname changes.
+Vercel's Python runtime installs the packages in `pyproject.toml`. The `vercel.json` file gives the solver function a 60-second maximum duration. The Render Blueprint remains available as an alternate backend deployment.

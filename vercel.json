@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "solver/main.py": {
+      "maxDuration": 60,
+      "includeFiles": [
+        "index.html",
+        "images.jpg",
+        "solver-config.js"
+      ]
+    }
+  }
+}
