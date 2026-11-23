@@ -1,6 +1,6 @@
 # FagNoon CP-SAT API
 
-The API models each trip group as a continuous activity chain, uses OR-Tools CP-SAT to select activity order and start times, and applies `NoOverlap` constraints to shared locations across groups and trips. Welcome, synchronized lunch, Farewell, Reception handoffs, Color Fight, travel buffers, exact trip ends, and optional 5/10-minute duration cuts are represented in the model.
+The API models each trip group as a continuous activity chain, uses OR-Tools CP-SAT to select activity order and start times, and applies `NoOverlap` constraints to shared locations across groups and trips. It supports one or more groups, synchronized lunch, Reception handoffs, Color Fight, travel buffers, exact trip ends, and optional 5/10-minute duration cuts.
 
 ## Run locally
 

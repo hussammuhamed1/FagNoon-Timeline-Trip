@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from itertools import combinations
 from pathlib import Path
 from typing import Any
 
@@ -132,14 +133,17 @@ def optimize(payload: dict[str, Any]) -> dict[str, Any]:
             )
             if earliest > latest or latest >= finish:
                 raise ValueError(f"{trip_name}: check its start window and trip end.")
-            groups = 2 if int(trip.get("groups", 1)) == 2 else 1
-            group_names = ["Group 1", "Group 2"] if groups == 2 else ["Whole trip"]
+            groups = int(trip.get("groups", 1))
+            if groups < 1 or groups > 20:
+                raise ValueError(f"{trip_name}: choose between 1 and 20 groups.")
+            group_names = [f"Group {group_index}" for group_index in range(1, groups + 1)] if groups > 1 else ["Whole trip"]
+            together_label = "Whole trip" if groups == 1 else "Both groups" if groups == 2 else "All groups"
 
             welcome_data = trip.get("welcome") or {}
             welcome = make_event(
                 name="Welcome", place="Reception", priority="Mandatory",
                 trip_index=trip_index, trip_name=trip_name, date=date,
-                group="Both groups" if groups == 2 else "Whole trip",
+                group=together_label,
                 stage="welcome", duration=15, shared=True,
             )
             model.Add(welcome["startVar"] >= earliest)
@@ -170,15 +174,18 @@ def optimize(payload: dict[str, Any]) -> dict[str, Any]:
                     event["baseDuration"] = base_duration
                     core_events[group].append(event)
                     sessions[group] = event
-                if groups == 2:
-                    trip_specs.append({"parallel_pair": (sessions["Group 1"], sessions["Group 2"])})
+                if groups > 1:
+                    trip_specs.extend({"parallel_pair": pair} for pair in combinations(sessions.values(), 2))
 
             lunch_data = trip.get("lunch") or {}
+            lunch_duration = int(lunch_data.get("minutes", 30))
+            if lunch_duration <= 0:
+                raise ValueError(f"{trip_name}: Lunch duration must be positive.")
             lunch = make_event(
-                name="Lunch", place="Lunch place", priority="Mandatory",
+                name="Lunch", place="lunch place", priority="Mandatory",
                 trip_index=trip_index, trip_name=trip_name, date=date,
-                group="Both groups" if groups == 2 else "Whole trip",
-                stage="lunch", duration=30, travel=int(lunch_data.get("travel", 0)), shared=True,
+                group=together_label,
+                stage="lunch", duration=lunch_duration, travel=int(lunch_data.get("travel", 0)), shared=True,
             )
 
             color_fight = None
@@ -192,7 +199,7 @@ def optimize(payload: dict[str, Any]) -> dict[str, Any]:
                 color_fight = make_event(
                     name=color_name, place=color_place, priority="Mandatory",
                     trip_index=trip_index, trip_name=trip_name, date=date,
-                    group="Both groups" if groups == 2 else "Whole trip",
+                    group=together_label,
                     stage="colorFight", duration=color_duration,
                     travel=int(color_data.get("travel", 0)), shared=True,
                 )
@@ -201,7 +208,7 @@ def optimize(payload: dict[str, Any]) -> dict[str, Any]:
             farewell = make_event(
                 name="Farewell", place="Reception", priority="Mandatory",
                 trip_index=trip_index, trip_name=trip_name, date=date,
-                group="Both groups" if groups == 2 else "Whole trip",
+                group=together_label,
                 stage="farewell", duration=15, shared=True,
             )
             model.Add(farewell["endVar"] == finish)
